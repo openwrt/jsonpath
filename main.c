@@ -30,7 +30,7 @@
 #include "matcher.h"
 
 static struct json_object *
-parse_json(FILE *fd, const char **error)
+parse_json(FILE *fd, const char *source, const char **error)
 {
 	int len;
 	char buf[256];
@@ -41,13 +41,21 @@ parse_json(FILE *fd, const char **error)
 	if (!tok)
 		return NULL;
 
-	while ((len = fread(buf, 1, sizeof(buf), fd)) > 0)
+	if (source)
 	{
-		obj = json_tokener_parse_ex(tok, buf, len);
+		obj = json_tokener_parse_ex(tok, source, strlen(source));
 		err = json_tokener_get_error(tok);
+	}
+	else
+	{
+		while ((len = fread(buf, 1, sizeof(buf), fd)) > 0)
+		{
+			obj = json_tokener_parse_ex(tok, buf, len);
+			err = json_tokener_get_error(tok);
 
-		if (!err || err != json_tokener_continue)
-			break;
+			if (!err || err != json_tokener_continue)
+				break;
+		}
 	}
 
 	json_tokener_free(tok);
@@ -215,9 +223,9 @@ int main(int argc, char **argv)
 	int opt, rv = 0;
 	FILE *input = stdin;
 	struct json_object *jsobj = NULL;
-	const char *jserr = NULL;
+	const char *jserr = NULL, *source = NULL;
 
-	while ((opt = getopt(argc, argv, "i:e:t:q")) != -1)
+	while ((opt = getopt(argc, argv, "i:s:e:t:q")) != -1)
 	{
 		switch (opt)
 		{
@@ -235,11 +243,15 @@ int main(int argc, char **argv)
 
 			break;
 
+		case 's':
+			source = optarg;
+			break;
+
 		case 't':
 		case 'e':
 			if (!jsobj)
 			{
-				jsobj = parse_json(input, &jserr);
+				jsobj = parse_json(input, source, &jserr);
 
 				if (!jsobj)
 				{
