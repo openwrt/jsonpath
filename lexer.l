@@ -19,18 +19,19 @@
 
 #include "parser.h"
 
-static char *str_ptr;
-static char str_buf[128];
+int yylex(struct jp_state *s);
+
+#define YY_DECL int yylex(struct jp_state *s)
 
 static void
-str_put(char c)
+str_put(struct jp_state *s, char c)
 {
-	if ((str_ptr - str_buf + 1) < sizeof(str_buf))
-		*str_ptr++ = c;
+	if ((s->str_ptr - s->str_buf + 1) < sizeof(s->str_buf))
+		*s->str_ptr++ = c;
 }
 
 static void
-str_decode(const char *input, int base)
+str_decode(struct jp_state *s, const char *input, int base)
 {
 	int code;
 	char *end;
@@ -42,25 +43,25 @@ str_decode(const char *input, int base)
 
 	if (code > 0 && code <= 0x7F)
 	{
-		str_put(code);
+		str_put(s, code);
 	}
 	else if (code > 0 && code <= 0x7FF)
 	{
-		str_put(((code >>  6) & 0x1F) | 0xC0);
-		str_put(( code        & 0x3F) | 0x80);
+		str_put(s, ((code >>  6) & 0x1F) | 0xC0);
+		str_put(s, ( code        & 0x3F) | 0x80);
 	}
 	else if (code > 0 && code <= 0xFFFF)
 	{
-		str_put(((code >> 12) & 0x0F) | 0xE0);
-		str_put(((code >>  6) & 0x3F) | 0x80);
-		str_put(( code        & 0x3F) | 0x80);
+		str_put(s, ((code >> 12) & 0x0F) | 0xE0);
+		str_put(s, ((code >>  6) & 0x3F) | 0x80);
+		str_put(s, ( code        & 0x3F) | 0x80);
 	}
 	else if (code > 0 && code <= 0x10FFFF)
 	{
-		str_put(((code >> 18) & 0x07) | 0xF0);
-		str_put(((code >> 12) & 0x3F) | 0x80);
-		str_put(((code >>  6) & 0x3F) | 0x80);
-		str_put(( code        & 0x3F) | 0x80);
+		str_put(s, ((code >> 18) & 0x07) | 0xF0);
+		str_put(s, ((code >> 12) & 0x3F) | 0x80);
+		str_put(s, ((code >>  6) & 0x3F) | 0x80);
+		str_put(s, ( code        & 0x3F) | 0x80);
 	}
 }
 
@@ -101,31 +102,31 @@ WS			[ \t\n]*
 %%
 
 \" {
-	str_ptr = str_buf;
-	memset(str_buf, 0, sizeof(str_buf));
+	s->str_ptr = s->str_buf;
+	memset(s->str_buf, 0, sizeof(s->str_buf));
 	BEGIN(STRING);
 }
 
 <STRING>{
 	\" {
 		BEGIN(INITIAL);
-		yylval.op = jp_alloc_op(T_STRING, 0, str_buf);
+		yylval.op = jp_alloc_op(T_STRING, 0, s->str_buf);
 		return T_STRING;
 	}
 
-	\\([0-3][0-7]{1,2}|[0-7]{0,2})	{ str_decode(yytext + 1, 8); }
-	\\x[A-Fa-f0-9]{2}				{ str_decode(yytext + 2, 16); }
-	\\u[A-Fa-f0-9]{4}				{ str_decode(yytext + 2, 16); }
-	\\a								{ str_put('\a'); }
-	\\b								{ str_put('\b'); }
-	\\e								{ str_put('\e'); }
-	\\f								{ str_put('\f'); }
-	\\n								{ str_put('\n'); }
-	\\r								{ str_put('\r'); }
-	\\t								{ str_put('\t'); }
-	\\v								{ str_put('\v'); }
-	\\.								{ str_put(*yytext); }
-	[^\\"]+							{ while (*yytext) str_put(*yytext++); }
+	\\([0-3][0-7]{1,2}|[0-7]{0,2})	{ str_decode(s, yytext + 1, 8); }
+	\\x[A-Fa-f0-9]{2}				{ str_decode(s, yytext + 2, 16); }
+	\\u[A-Fa-f0-9]{4}				{ str_decode(s, yytext + 2, 16); }
+	\\a								{ str_put(s, '\a'); }
+	\\b								{ str_put(s, '\b'); }
+	\\e								{ str_put(s, '\e'); }
+	\\f								{ str_put(s, '\f'); }
+	\\n								{ str_put(s, '\n'); }
+	\\r								{ str_put(s, '\r'); }
+	\\t								{ str_put(s, '\t'); }
+	\\v								{ str_put(s, '\v'); }
+	\\.								{ str_put(s, *yytext); }
+	[^\\"]+							{ while (*yytext) str_put(s, *yytext++); }
 }
 
 {BOOL} {

@@ -76,23 +76,25 @@ static void
 export_json(struct json_object *jsobj, char *expr)
 {
 	bool first;
-	struct jp_opcode *tree;
+	struct jp_state *state;
 	struct json_object *res;
-	const char *error, *prefix;
+	const char *prefix;
 
-	tree = jp_parse(expr, &error);
+	state = jp_parse(expr);
 
-	if (error)
+	if (!state || state->error)
 	{
-		fprintf(stderr, "In expression '%s': %s\n", expr, error);
-		return;
+		fprintf(stderr, "In expression '%s': %s\n",
+		        expr, state ? state->error : "Out of memory");
+
+		goto out;
 	}
 
-	res = jp_match(tree, jsobj);
+	res = jp_match(state->path, jsobj);
 
-	if (tree->type == T_LABEL)
+	if (state->path->type == T_LABEL)
 	{
-		prefix = tree->str;
+		prefix = state->path->str;
 
 		switch (json_object_get_type(res))
 		{
@@ -163,7 +165,9 @@ export_json(struct json_object *jsobj, char *expr)
 		printf("%s\n", json_object_to_json_string(res));
 	}
 
-	jp_free();
+out:
+	if (state)
+		jp_free(state);
 }
 
 int main(int argc, char **argv)

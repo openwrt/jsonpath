@@ -15,45 +15,61 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
+
 #include <libubox/utils.h>
 
-#include "lexer.h"
 #include "parser.h"
 
-static struct jp_opcode *op_pool = NULL;
 static struct jp_opcode *append_op(struct jp_opcode *a, struct jp_opcode *b);
 
-int yyparse(struct jp_opcode **tree, const char **error);
-void yyerror(struct jp_opcode **expr, const char **error, const char *msg);
+int yylex(struct jp_state *s);
+void *yy_scan_string (const char *str);
+int yylex_destroy(void);
+
+int yyparse(struct jp_state *s);
+void yyerror(struct jp_state *s, const char *msg);
 
 %}
 
 %output  "parser.c"
 %defines "parser.h"
 
-%parse-param { struct jp_opcode **expr }
-%parse-param { const char **error }
+%parse-param { struct jp_state *s }
+%lex-param { struct jp_state *s }
 
 %code provides {
 
-#ifndef JP_OPCODE
-# define JP_OPCODE
-	struct jp_opcode {
-		int type;
-		struct jp_opcode *next;
-		struct jp_opcode *down;
-		struct jp_opcode *sibling;
-		char *str;
-		int num;
-	};
+#ifndef __PARSER_H_
+#define __PARSER_H_
+
+struct jp_opcode {
+	int type;
+	struct jp_opcode *next;
+	struct jp_opcode *down;
+	struct jp_opcode *sibling;
+	char *str;
+	int num;
+};
+
+struct jp_state {
+	struct jp_opcode *pool;
+	struct jp_opcode *path;
+	const char *error;
+	char str_buf[128];
+	char *str_ptr;
+};
+
+struct jp_opcode *_jp_alloc_op(struct jp_state *s, int type, int num, char *str, ...);
+#define jp_alloc_op(type, num, str, ...) _jp_alloc_op(s, type, num, str, ##__VA_ARGS__, NULL)
+
+struct jp_state *jp_parse(const char *expr);
+void jp_free(struct jp_state *s);
+
 #endif
-
-struct jp_opcode *_jp_alloc_op(int type, int num, char *str, ...);
-#define jp_alloc_op(type, num, str, ...) _jp_alloc_op(type, num, str, ##__VA_ARGS__, NULL)
-
-struct jp_opcode *jp_parse(const char *expr, const char **error);
-void jp_free(void);
 
 }
 
@@ -74,7 +90,7 @@ void jp_free(void);
 %%
 
 input
-	: expr 							{ *expr = $1; }
+	: expr 							{ s->path = $1; }
 	;
 
 expr
@@ -139,10 +155,9 @@ unary_exp
 %%
 
 void
-yyerror(struct jp_opcode **expr, const char **error, const char *msg)
+yyerror(struct jp_state *s, const char *msg)
 {
-	*error = msg;
-	jp_free();
+	s->error = msg;
 }
 
 static struct jp_opcode *
@@ -159,7 +174,7 @@ append_op(struct jp_opcode *a, struct jp_opcode *b)
 }
 
 struct jp_opcode *
-_jp_alloc_op(int type, int num, char *str, ...)
+_jp_alloc_op(struct jp_state *s, int type, int num, char *str, ...)
 {
 	va_list ap;
 	char *ptr;
@@ -190,42 +205,43 @@ _jp_alloc_op(int type, int num, char *str, ...)
 
 	va_end(ap);
 
-	newop->next = op_pool;
-	op_pool = newop;
+	newop->next = s->pool;
+	s->pool = newop;
 
 	return newop;
 }
 
-struct jp_opcode *
-jp_parse(const char *expr, const char **error)
+struct jp_state *
+jp_parse(const char *expr)
 {
-	void *buf;
-	struct jp_opcode *tree;
+	struct jp_state *s;
 
-	buf = yy_scan_string(expr);
+	s = calloc(1, sizeof(*s));
 
-	if (yyparse(&tree, error))
-		tree = NULL;
-	else
-		*error = NULL;
+	if (!s)
+		return NULL;
 
-	yy_delete_buffer(buf);
+	yy_scan_string(expr);
+
+	if (yyparse(s))
+		s->path = NULL;
+
 	yylex_destroy();
 
-	return tree;
+	return s;
 }
 
 void
-jp_free(void)
+jp_free(struct jp_state *s)
 {
 	struct jp_opcode *op, *tmp;
 
-	for (op = op_pool; op;)
+	for (op = s->pool; op;)
 	{
 		tmp = op->next;
 		free(op);
 		op = tmp;
 	}
 
-	op_pool = NULL;
+	free(s);
 }
