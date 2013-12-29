@@ -41,7 +41,7 @@ void yyerror(struct jp_state *s, const char *msg);
 %parse-param { struct jp_state *s }
 %lex-param { struct jp_state *s }
 
-%code provides {
+%code requires {
 
 #ifndef __PARSER_H_
 #define __PARSER_H_
