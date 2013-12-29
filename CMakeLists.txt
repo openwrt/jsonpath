@@ -27,6 +27,7 @@ FIND_PACKAGE(BISON REQUIRED)
 IF(BISON_FOUND)
     ADD_CUSTOM_COMMAND(
       OUTPUT parser.c
+      DEPENDS parser.y
       COMMAND ${BISON_EXECUTABLE} parser.y
       COMMENT "Generating parser.c"
     )
@@ -36,11 +37,14 @@ FIND_PACKAGE(FLEX REQUIRED)
 IF(FLEX_FOUND)
     ADD_CUSTOM_COMMAND(
       OUTPUT lexer.c
+      DEPENDS lexer.l
       COMMAND ${FLEX_EXECUTABLE} lexer.l
       COMMENT "Generating lexer.c"
     )
 ENDIF()
 
+SET_PROPERTY(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "lexer.h;parser.h")
+SET_SOURCE_FILES_PROPERTIES("lexer.c;parser.c" PROPERTIES GENERATED TRUE)
 ADD_EXECUTABLE(jsonpath main.c lexer.c parser.c matcher.c)
 TARGET_LINK_LIBRARIES(jsonpath ubox ${json})
 
