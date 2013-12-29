@@ -186,7 +186,7 @@ _jp_alloc_op(struct jp_state *s, int type, int num, char *str, ...)
 	if (!newop)
 	{
 		fprintf(stderr, "Out of memory\n");
-		exit(1);
+		exit(127);
 	}
 
 	newop->type = type;
