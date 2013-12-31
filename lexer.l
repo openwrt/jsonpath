@@ -101,17 +101,23 @@ WS			[ \t\n]*
 
 %%
 
-\" {
+["'] {
 	s->str_ptr = s->str_buf;
+	s->str_quote = *yytext;
 	memset(s->str_buf, 0, sizeof(s->str_buf));
 	BEGIN(STRING);
 }
 
 <STRING>{
-	\" {
-		BEGIN(INITIAL);
-		yylval.op = jp_alloc_op(T_STRING, 0, s->str_buf);
-		return T_STRING;
+	["'] {
+		if (*yytext == s->str_quote)
+		{
+			BEGIN(INITIAL);
+			yylval.op = jp_alloc_op(T_STRING, 0, s->str_buf);
+			return T_STRING;
+		}
+
+		str_put(s, *yytext);
 	}
 
 	\\([0-3][0-7]{1,2}|[0-7]{0,2})	{ str_decode(s, yytext + 1, 8); }
@@ -126,7 +132,7 @@ WS			[ \t\n]*
 	\\t								{ str_put(s, '\t'); }
 	\\v								{ str_put(s, '\v'); }
 	\\.								{ str_put(s, *yytext); }
-	[^\\"]+							{ while (*yytext) str_put(s, *yytext++); }
+	[^\\"']+						{ while (*yytext) str_put(s, *yytext++); }
 }
 
 {BOOL} {

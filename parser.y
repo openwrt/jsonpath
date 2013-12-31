@@ -59,6 +59,7 @@ struct jp_state {
 	struct jp_opcode *pool;
 	struct jp_opcode *path;
 	const char *error;
+	char str_quote;
 	char str_buf[128];
 	char *str_ptr;
 };
