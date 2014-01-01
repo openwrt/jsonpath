@@ -28,7 +28,10 @@
 
 #include "parser.h"
 
+typedef void (*jp_match_cb_t)(struct json_object *res, void *priv);
+
 struct json_object *
-jp_match(struct jp_opcode *path, struct json_object *jsobj);
+jp_match(struct jp_opcode *path, struct json_object *jsobj,
+         jp_match_cb_t cb, void *priv);
 
 #endif

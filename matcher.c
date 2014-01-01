@@ -18,7 +18,8 @@
 
 static struct json_object *
 jp_match_next(struct jp_opcode *ptr,
-              struct json_object *root, struct json_object *cur);
+              struct json_object *root, struct json_object *cur,
+              jp_match_cb_t cb, void *priv);
 
 static bool
 jp_json_to_op(struct json_object *obj, struct jp_opcode *op)
@@ -54,7 +55,7 @@ jp_resolve(struct json_object *root, struct json_object *cur,
 	switch (op->type)
 	{
 	case T_THIS:
-		val = jp_match(op, cur);
+		val = jp_match(op, cur, NULL, NULL);
 
 		if (val)
 			return jp_json_to_op(val, res);
@@ -62,7 +63,7 @@ jp_resolve(struct json_object *root, struct json_object *cur,
 		return false;
 
 	case T_ROOT:
-		val = jp_match(op, root);
+		val = jp_match(op, root, NULL, NULL);
 
 		if (val)
 			return jp_json_to_op(val, res);
@@ -129,7 +130,8 @@ jp_cmp(struct jp_opcode *op, struct json_object *root, struct json_object *cur)
 }
 
 static bool
-jp_expr(struct jp_opcode *op, struct json_object *root, struct json_object *cur)
+jp_expr(struct jp_opcode *op, struct json_object *root, struct json_object *cur,
+        int idx, const char *key, jp_match_cb_t cb, void *priv)
 {
 	struct jp_opcode *sop;
 
@@ -147,25 +149,31 @@ jp_expr(struct jp_opcode *op, struct json_object *root, struct json_object *cur)
 		return jp_cmp(op, root, cur);
 
 	case T_ROOT:
-		return !!jp_match(op, root);
+		return !!jp_match(op, root, NULL, NULL);
 
 	case T_THIS:
-		return !!jp_match(op, cur);
+		return !!jp_match(op, cur, NULL, NULL);
 
 	case T_NOT:
-		return !jp_expr(op->down, root, cur);
+		return !jp_expr(op->down, root, cur, idx, key, cb, priv);
 
 	case T_AND:
 		for (sop = op->down; sop; sop = sop->sibling)
-			if (!jp_expr(sop, root, cur))
+			if (!jp_expr(sop, root, cur, idx, key, cb, priv))
 				return false;
 		return true;
 
 	case T_OR:
 		for (sop = op->down; sop; sop = sop->sibling)
-			if (jp_expr(sop, root, cur))
+			if (jp_expr(sop, root, cur, idx, key, cb, priv))
 				return true;
 		return false;
+
+	case T_STRING:
+		return (key && !strcmp(op->str, key));
+
+	case T_NUMBER:
+		return (idx == op->num);
 
 	default:
 		return false;
@@ -174,7 +182,8 @@ jp_expr(struct jp_opcode *op, struct json_object *root, struct json_object *cur)
 
 static struct json_object *
 jp_match_expr(struct jp_opcode *ptr,
-              struct json_object *root, struct json_object *cur)
+              struct json_object *root, struct json_object *cur,
+              jp_match_cb_t cb, void *priv)
 {
 	int idx, len;
 	struct json_object *tmp, *res = NULL;
@@ -185,12 +194,9 @@ jp_match_expr(struct jp_opcode *ptr,
 		; /* a label can only be part of a statement and a declaration is not a statement */
 		json_object_object_foreach(cur, key, val)
 		{
-			if (!key)
-				continue;
-
-			if (jp_expr(ptr, root, val))
+			if (jp_expr(ptr, root, val, -1, key, cb, priv))
 			{
-				tmp = jp_match_next(ptr->sibling, root, val);
+				tmp = jp_match_next(ptr->sibling, root, val, cb, priv);
 
 				if (tmp && !res)
 					res = tmp;
@@ -206,9 +212,9 @@ jp_match_expr(struct jp_opcode *ptr,
 		{
 			tmp = json_object_array_get_idx(cur, idx);
 
-			if (jp_expr(ptr, root, tmp))
+			if (jp_expr(ptr, root, tmp, idx, NULL, cb, priv))
 			{
-				tmp = jp_match_next(ptr->sibling, root, tmp);
+				tmp = jp_match_next(ptr->sibling, root, tmp, cb, priv);
 
 				if (tmp && !res)
 					res = tmp;
@@ -226,19 +232,25 @@ jp_match_expr(struct jp_opcode *ptr,
 
 static struct json_object *
 jp_match_next(struct jp_opcode *ptr,
-              struct json_object *root, struct json_object *cur)
+              struct json_object *root, struct json_object *cur,
+              jp_match_cb_t cb, void *priv)
 {
 	struct json_object *next;
 
 	if (!ptr)
+	{
+		if (cb)
+			cb(cur, priv);
+
 		return cur;
+	}
 
 	switch (ptr->type)
 	{
 	case T_STRING:
 	case T_LABEL:
 		if (json_object_object_get_ex(cur, ptr->str, &next))
-			return jp_match_next(ptr->sibling, root, next);
+			return jp_match_next(ptr->sibling, root, next, cb, priv);
 
 		break;
 
@@ -246,22 +258,23 @@ jp_match_next(struct jp_opcode *ptr,
 		next = json_object_array_get_idx(cur, ptr->num);
 
 		if (next)
-			return jp_match_next(ptr->sibling, root, next);
+			return jp_match_next(ptr->sibling, root, next, cb, priv);
 
 		break;
 
 	default:
-		return jp_match_expr(ptr, root, cur);
+		return jp_match_expr(ptr, root, cur, cb, priv);
 	}
 
 	return NULL;
 }
 
 struct json_object *
-jp_match(struct jp_opcode *path, json_object *jsobj)
+jp_match(struct jp_opcode *path, json_object *jsobj,
+         jp_match_cb_t cb, void *priv)
 {
 	if (path->type == T_LABEL)
 		path = path->down;
 
-	return jp_match_next(path->down, jsobj, jsobj);
+	return jp_match_next(path->down, jsobj, jsobj, cb, priv);
 }
