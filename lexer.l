@@ -77,6 +77,7 @@ BROPEN		"["
 BRCLOSE		"]"
 POPEN		"("
 PCLOSE		")"
+COMMA		","
 
 ROOT		"$"
 THIS		"@"
@@ -160,6 +161,7 @@ WS			[ \t\n]*
 {BRCLOSE}	{ return T_BRCLOSE; }
 {POPEN}		{ return T_POPEN; }
 {PCLOSE}	{ return T_PCLOSE; }
+{COMMA}		{ return T_UNION; }
 
 {ROOT}		{ return T_ROOT; }
 {THIS}		{ return T_THIS; }

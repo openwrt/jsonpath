@@ -164,6 +164,7 @@ jp_expr(struct jp_opcode *op, struct json_object *root, struct json_object *cur,
 		return true;
 
 	case T_OR:
+	case T_UNION:
 		for (sop = op->down; sop; sop = sop->sibling)
 			if (jp_expr(sop, root, cur, idx, key, cb, priv))
 				return true;

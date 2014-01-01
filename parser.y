@@ -80,11 +80,11 @@ void jp_free(struct jp_state *s);
 
 
 %token T_ROOT T_THIS T_DOT T_BROPEN T_BRCLOSE
-%token T_OR T_AND T_LT T_LE T_GT T_GE T_EQ T_NE T_POPEN T_PCLOSE T_NOT
+%token T_OR T_AND T_LT T_LE T_GT T_GE T_EQ T_NE T_POPEN T_PCLOSE T_NOT T_UNION
 
 %token <op> T_BOOL T_NUMBER T_STRING T_LABEL T_WILDCARD
 
-%type <op> expr path segments segment or_exps or_exp and_exps and_exp cmp_exp unary_exp
+%type <op> expr path segments segment union_exps union_exp or_exps or_exp and_exps and_exp cmp_exp unary_exp
 
 %error-verbose
 
@@ -112,7 +112,16 @@ segments
 segment
 	: T_DOT T_LABEL					{ $$ = $2; }
 	| T_DOT T_WILDCARD				{ $$ = $2; }
-	| T_BROPEN or_exps T_BRCLOSE	{ $$ = $2; }
+	| T_BROPEN union_exps T_BRCLOSE	{ $$ = $2; }
+	;
+
+union_exps
+	: union_exp						{ $$ = $1->sibling ? jp_alloc_op(T_UNION, 0, NULL, $1) : $1; }
+	;
+
+union_exp
+	: union_exp T_UNION or_exps		{ $$ = append_op($1, $3); }
+	| or_exps						{ $$ = $1; }
 	;
 
 or_exps
