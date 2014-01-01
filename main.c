@@ -25,9 +25,17 @@
 	#include <json-c/json.h>
 #endif
 
+#include <libubox/list.h>
+
 #include "lexer.h"
 #include "parser.h"
 #include "matcher.h"
+
+
+struct match_item {
+	struct json_object *jsobj;
+	struct list_head list;
+};
 
 static struct json_object *
 parse_json(FILE *fd, const char *source, const char **error)
@@ -91,75 +99,95 @@ print_string(const char *s)
 }
 
 static void
-export_value(struct json_object *jsobj, const char *prefix)
+export_value(struct list_head *matches, const char *prefix)
 {
 	int n, len;
 	bool first = true;
+	struct match_item *item;
+
+	if (list_empty(matches))
+		return;
 
 	if (prefix)
 	{
-		switch (json_object_get_type(jsobj))
+		printf("export %s=", prefix);
+
+		list_for_each_entry(item, matches, list)
 		{
-		case json_type_object:
-			printf("export %s=", prefix);
-			json_object_object_foreach(jsobj, key, val)
+			switch (json_object_get_type(item->jsobj))
 			{
-				if (!val)
-					continue;
+			case json_type_object:
+				; /* a label can only be part of a statement */
+				json_object_object_foreach(item->jsobj, key, val)
+				{
+					if (!val)
+						continue;
 
+					if (!first)
+						printf("\\ ");
+
+					print_string(key);
+					first = false;
+				}
+				break;
+
+			case json_type_array:
+				for (n = 0, len = json_object_array_length(item->jsobj);
+				     n < len; n++)
+				{
+					if (!first)
+						printf("\\ ");
+
+					printf("%d", n);
+					first = false;
+				}
+				break;
+
+			case json_type_boolean:
 				if (!first)
 					printf("\\ ");
+				printf("%d", json_object_get_boolean(item->jsobj));
+				break;
 
-				print_string(key);
-				first = false;
-			}
-			printf("; ");
-			break;
-
-		case json_type_array:
-			printf("export %s=", prefix);
-			for (n = 0, len = json_object_array_length(jsobj); n < len; n++)
-			{
+			case json_type_int:
 				if (!first)
 					printf("\\ ");
+				printf("%d", json_object_get_int(item->jsobj));
+				break;
 
-				printf("%d", n);
-				first = false;
+			case json_type_double:
+				if (!first)
+					printf("\\ ");
+				printf("%f", json_object_get_double(item->jsobj));
+				break;
+
+			case json_type_string:
+				if (!first)
+					printf("\\ ");
+				print_string(json_object_get_string(item->jsobj));
+				break;
+
+			case json_type_null:
+				break;
 			}
-			printf("; ");
-			break;
 
-		case json_type_boolean:
-			printf("export %s=%d; ", prefix, json_object_get_boolean(jsobj));
-			break;
-
-		case json_type_int:
-			printf("export %s=%d; ", prefix, json_object_get_int(jsobj));
-			break;
-
-		case json_type_double:
-			printf("export %s=%f; ", prefix, json_object_get_double(jsobj));
-			break;
-
-		case json_type_string:
-			printf("export %s=", prefix);
-			print_string(json_object_get_string(jsobj));
-			printf("; ");
-			break;
-
-		case json_type_null:
-			break;
+			first = false;
 		}
+
+		printf("; ");
 	}
 	else
 	{
-		printf("%s\n", json_object_to_json_string(jsobj));
+		list_for_each_entry(item, matches, list)
+			printf("%s\n", json_object_to_json_string(item->jsobj));
 	}
 }
 
 static void
-export_type(struct json_object *jsobj, const char *prefix)
+export_type(struct list_head *matches, const char *prefix)
 {
+	bool first = true;
+	struct match_item *item;
 	const char *types[] = {
 		"null",
 		"boolean",
@@ -170,18 +198,48 @@ export_type(struct json_object *jsobj, const char *prefix)
 		"string"
 	};
 
+	if (list_empty(matches))
+		return;
+
 	if (prefix)
-		printf("export %s=%s; ", prefix, types[json_object_get_type(jsobj)]);
+		printf("export %s=", prefix);
+
+	list_for_each_entry(item, matches, list)
+	{
+		if (!first)
+			printf("\\ ");
+
+		printf("%s", types[json_object_get_type(item->jsobj)]);
+		first = false;
+	}
+
+	if (prefix)
+		printf("; ");
 	else
-		printf("%s\n", types[json_object_get_type(jsobj)]);
+		printf("\n");
+}
+
+static void
+match_cb(struct json_object *res, void *priv)
+{
+	struct list_head *h = priv;
+	struct match_item *i = calloc(1, sizeof(*i));
+
+	if (i)
+	{
+		i->jsobj = res;
+		list_add_tail(&i->list, h);
+	}
 }
 
 static bool
 filter_json(int opt, struct json_object *jsobj, char *expr)
 {
 	struct jp_state *state;
-	struct json_object *res = NULL;
 	const char *prefix = NULL;
+	struct list_head matches;
+	struct match_item *item, *tmp;
+	struct json_object *res = NULL;
 
 	state = jp_parse(expr);
 
@@ -193,23 +251,24 @@ filter_json(int opt, struct json_object *jsobj, char *expr)
 		goto out;
 	}
 
-	res = jp_match(state->path, jsobj);
+	INIT_LIST_HEAD(&matches);
 
-	if (res)
+	res = jp_match(state->path, jsobj, match_cb, &matches);
+	prefix = (state->path->type == T_LABEL) ? state->path->str : NULL;
+
+	switch (opt)
 	{
-		prefix = (state->path->type == T_LABEL) ? state->path->str : NULL;
+	case 't':
+		export_type(&matches, prefix);
+		break;
 
-		switch (opt)
-		{
-		case 't':
-			export_type(res, prefix);
-			break;
-
-		default:
-			export_value(res, prefix);
-			break;
-		}
+	default:
+		export_value(&matches, prefix);
+		break;
 	}
+
+	list_for_each_entry_safe(item, tmp, &matches, list)
+		free(item);
 
 out:
 	if (state)
