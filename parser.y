@@ -58,7 +58,7 @@ struct jp_opcode {
 struct jp_state {
 	struct jp_opcode *pool;
 	struct jp_opcode *path;
-	const char *error;
+	char *error;
 	char str_quote;
 	char str_buf[128];
 	char *str_ptr;
@@ -167,7 +167,7 @@ unary_exp
 void
 yyerror(struct jp_state *s, const char *msg)
 {
-	s->error = msg;
+	s->error = strdup(msg);
 }
 
 static struct jp_opcode *
@@ -252,6 +252,9 @@ jp_free(struct jp_state *s)
 		free(op);
 		op = tmp;
 	}
+
+	if (s->error)
+		free(s->error);
 
 	free(s);
 }
