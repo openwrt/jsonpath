@@ -179,7 +179,25 @@ export_value(struct list_head *matches, const char *prefix)
 	else
 	{
 		list_for_each_entry(item, matches, list)
-			printf("%s\n", json_object_to_json_string(item->jsobj));
+		{
+			switch (json_object_get_type(item->jsobj))
+			{
+			case json_type_object:
+			case json_type_array:
+			case json_type_boolean:
+			case json_type_int:
+			case json_type_double:
+				printf("%s\n", json_object_to_json_string(item->jsobj));
+				break;
+
+			case json_type_string:
+				printf("%s\n", json_object_get_string(item->jsobj));
+				break;
+
+			case json_type_null:
+				break;
+			}
+		}
 	}
 }
 
