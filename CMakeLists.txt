@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 2.6)
 
 PROJECT(jsonpath C)
-ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -Wmissing-declarations)
+ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -Wmissing-declarations -ffunction-sections)
 
-SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
+SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-Wl,--gc-sections")
 
 IF(APPLE)
   INCLUDE_DIRECTORIES(/opt/local/include)
