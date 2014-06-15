@@ -263,8 +263,9 @@ filter_json(int opt, struct json_object *jsobj, char *expr)
 
 	if (!state || state->error)
 	{
-		fprintf(stderr, "In expression '%s': %s\n",
-		        expr, state ? state->error : "Out of memory");
+		fprintf(stderr, "Syntax error near {%s}: %s\n",
+		        state ? expr + state->erroff : expr,
+				state ? state->error : "Out of memory");
 
 		goto out;
 	}

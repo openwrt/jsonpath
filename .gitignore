@@ -4,5 +4,4 @@ CMakeFiles
 *.cmake
 install_manifest.txt
 jsonpath
-lexer.[ch]
 parser.[ch]

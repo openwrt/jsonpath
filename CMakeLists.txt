@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.6)
 
 PROJECT(jsonpath C)
-ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -Wmissing-declarations -ffunction-sections)
+ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -Wmissing-declarations -Wno-error=unused-variable -ffunction-sections -D_GNU_SOURCE)
 
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-Wl,--gc-sections")
 
@@ -23,29 +23,23 @@ IF(JSONC_FOUND)
   INCLUDE_DIRECTORIES(${JSONC_INCLUDE_DIRS})
 ENDIF()
 
-FIND_PACKAGE(BISON REQUIRED)
-IF(BISON_FOUND)
-    ADD_CUSTOM_COMMAND(
-      OUTPUT parser.c
-      DEPENDS parser.y
-      COMMAND ${BISON_EXECUTABLE} parser.y
-      COMMENT "Generating parser.c"
-    )
-ENDIF()
+ADD_CUSTOM_COMMAND(
+  OUTPUT contrib/lemon
+  DEPENDS contrib/lemon.c contrib/lempar.c
+  COMMAND gcc -o contrib/lemon contrib/lemon.c
+  COMMENT "Generating lemon parser generator"
+)
 
-FIND_PACKAGE(FLEX REQUIRED)
-IF(FLEX_FOUND)
-    ADD_CUSTOM_COMMAND(
-      OUTPUT lexer.c
-      DEPENDS lexer.l
-      COMMAND ${FLEX_EXECUTABLE} lexer.l
-      COMMENT "Generating lexer.c"
-    )
-ENDIF()
+ADD_CUSTOM_COMMAND(
+  OUTPUT parser.c
+  DEPENDS parser.y contrib/lemon
+  COMMAND ./contrib/lemon parser.y
+  COMMENT "Generating parser.c"
+)
 
-SET_PROPERTY(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "lexer.h;parser.h")
-SET_SOURCE_FILES_PROPERTIES("lexer.c;parser.c" PROPERTIES GENERATED TRUE)
-ADD_EXECUTABLE(jsonpath main.c lexer.c parser.c matcher.c)
+SET_PROPERTY(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "lemon;parser.h;parser.out")
+SET_SOURCE_FILES_PROPERTIES("parser.c" PROPERTIES GENERATED TRUE)
+ADD_EXECUTABLE(jsonpath main.c ast.c lexer.c parser.c matcher.c)
 TARGET_LINK_LIBRARIES(jsonpath ubox ${json})
 
 INSTALL(TARGETS jsonpath RUNTIME DESTINATION bin)

@@ -14,24 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __MATCHER_H_
-#define __MATCHER_H_
-
-#include <string.h>
-#include <stdbool.h>
-
-#ifdef JSONC
-	#include <json.h>
-#else
-	#include <json-c/json.h>
-#endif
+#ifndef __LEXER_H_
+#define __LEXER_H_
 
 #include "ast.h"
 
-typedef void (*jp_match_cb_t)(struct json_object *res, void *priv);
+extern const char *tokennames[23];
 
-struct json_object *
-jp_match(struct jp_opcode *path, struct json_object *jsobj,
-         jp_match_cb_t cb, void *priv);
+struct jp_opcode *
+jp_get_token(struct jp_state *s, const char *input, int *mlen);
 
-#endif
+#endif /* __LEXER_H_ */
