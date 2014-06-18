@@ -73,9 +73,6 @@ jp_free(struct jp_state *s)
 		op = tmp;
 	}
 
-	if (s->error)
-		free(s->error);
-
 	free(s);
 }
 
@@ -101,18 +98,11 @@ jp_parse(const char *expr)
 
 	while (len > 0)
 	{
-		s->off = (ptr - expr);
-
 		op = jp_get_token(s, ptr, &mlen);
 
 		if (mlen < 0)
 		{
-			s->erroff = s->off;
-			s->error = strdup((mlen == -3) ? "String too long" :
-								(mlen == -2) ? "Invalid escape sequence" :
-									(mlen == -1) ? "Unterminated string" :
-										"Unknown error");
-
+			s->error_code = mlen;
 			goto out;
 		}
 
@@ -121,6 +111,8 @@ jp_parse(const char *expr)
 
 		len -= mlen;
 		ptr += mlen;
+
+		s->off += mlen;
 	}
 
 	Parse(pParser, 0, NULL, s);

@@ -28,7 +28,7 @@ struct token {
 	int type;
 	const char *pat;
 	int plen;
-	int (*parse)(const char *buf, struct jp_opcode *op);
+	int (*parse)(const char *buf, struct jp_opcode *op, struct jp_state *s);
 };
 
 #define dec(o) \
@@ -106,7 +106,7 @@ utf8enc(char **out, int *rem, int code)
  */
 
 static int
-parse_string(const char *buf, struct jp_opcode *op)
+parse_string(const char *buf, struct jp_opcode *op, struct jp_state *s)
 {
 	char q = *(buf++);
 	char str[128] = { 0 };
@@ -132,12 +132,16 @@ parse_string(const char *buf, struct jp_opcode *op)
 					             hex(in[2]) * 16 * 16 +
 					             hex(in[3]) * 16 +
 					             hex(in[4])))
+					{
+						s->error_pos = s->off + (in - buf);
 						return -3;
+					}
 
 					in += 5;
 				}
 				else
 				{
+					s->error_pos = s->off + (in - buf);
 					return -2;
 				}
 			}
@@ -148,12 +152,16 @@ parse_string(const char *buf, struct jp_opcode *op)
 				if (isxdigit(in[1]) && isxdigit(in[2]))
 				{
 					if (!utf8enc(&out, &rem, hex(in[1]) * 16 + hex(in[2])))
+					{
+						s->error_pos = s->off + (in - buf);
 						return -3;
+					}
 
 					in += 3;
 				}
 				else
 				{
+					s->error_pos = s->off + (in - buf);
 					return -2;
 				}
 			}
@@ -170,10 +178,16 @@ parse_string(const char *buf, struct jp_opcode *op)
 					       dec(in[2]);
 
 					if (code > 255)
+					{
+						s->error_pos = s->off + (in - buf);
 						return -2;
+					}
 
 					if (!utf8enc(&out, &rem, code))
+					{
+						s->error_pos = s->off + (in - buf);
 						return -3;
+					}
 
 					in += 3;
 				}
@@ -182,7 +196,10 @@ parse_string(const char *buf, struct jp_opcode *op)
 				else if (in[1] >= '0' && in[1] <= '7')
 				{
 					if (!utf8enc(&out, &rem, dec(in[0]) * 8 + dec(in[1])))
+					{
+						s->error_pos = s->off + (in - buf);
 						return -3;
+					}
 
 					in += 2;
 				}
@@ -191,7 +208,10 @@ parse_string(const char *buf, struct jp_opcode *op)
 				else
 				{
 					if (!utf8enc(&out, &rem, dec(in[0])))
+					{
+						s->error_pos = s->off + (in - buf);
 						return -3;
+					}
 
 					in += 1;
 				}
@@ -201,7 +221,10 @@ parse_string(const char *buf, struct jp_opcode *op)
 			else
 			{
 				if (rem-- < 1)
+				{
+					s->error_pos = s->off + (in - buf);
 					return -3;
+				}
 
 				switch (in[0])
 				{
@@ -241,7 +264,10 @@ parse_string(const char *buf, struct jp_opcode *op)
 		else
 		{
 			if (rem-- < 1)
+			{
+				s->error_pos = s->off + (in - buf);
 				return -3;
+			}
 
 			*out++ = *in++;
 		}
@@ -262,7 +288,7 @@ parse_string(const char *buf, struct jp_opcode *op)
  */
 
 static int
-parse_label(const char *buf, struct jp_opcode *op)
+parse_label(const char *buf, struct jp_opcode *op, struct jp_state *s)
 {
 	char str[128] = { 0 };
 	char *out = str;
@@ -272,7 +298,10 @@ parse_label(const char *buf, struct jp_opcode *op)
 	while (*in == '_' || isalnum(*in))
 	{
 		if (rem-- < 1)
+		{
+			s->error_pos = s->off + (in - buf);
 			return -3;
+		}
 
 		*out++ = *in++;
 	}
@@ -302,13 +331,16 @@ parse_label(const char *buf, struct jp_opcode *op)
  */
 
 static int
-parse_number(const char *buf, struct jp_opcode *op)
+parse_number(const char *buf, struct jp_opcode *op, struct jp_state *s)
 {
 	char *e;
 	int n = strtol(buf, &e, 10);
 
 	if (e == buf)
+	{
+		s->error_pos = s->off;
 		return -2;
+	}
 
 	op->num = n;
 
@@ -374,7 +406,7 @@ const char *tokennames[23] = {
 
 
 static int
-match_token(const char *ptr, struct jp_opcode *op)
+match_token(const char *ptr, struct jp_opcode *op, struct jp_state *s)
 {
 	int i;
 	const struct token *tok;
@@ -389,13 +421,14 @@ match_token(const char *ptr, struct jp_opcode *op)
 			op->type = tok->type;
 
 			if (tok->parse)
-				return tok->parse(ptr, op);
+				return tok->parse(ptr, op, s);
 
 			return tok->plen;
 		}
 	}
 
-	return -1;
+	s->error_pos = s->off;
+	return -4;
 }
 
 struct jp_opcode *
@@ -403,10 +436,17 @@ jp_get_token(struct jp_state *s, const char *input, int *mlen)
 {
 	struct jp_opcode op = { 0 };
 
-	*mlen = match_token(input, &op);
+	*mlen = match_token(input, &op, s);
 
-	if (*mlen < 0 || op.type == 0)
+	if (*mlen < 0)
+	{
+		s->error_code = *mlen;
 		return NULL;
+	}
+	else if (op.type == 0)
+	{
+		return NULL;
+	}
 
 	return jp_alloc_op(s, op.type, op.num, op.str, NULL);
 }

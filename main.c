@@ -250,6 +250,57 @@ match_cb(struct json_object *res, void *priv)
 	}
 }
 
+static void
+print_error(struct jp_state *state, char *expr)
+{
+	int i;
+	bool first = true;
+
+	fprintf(stderr, "Syntax error: ");
+
+	switch (state->error_code)
+	{
+	case -4:
+		fprintf(stderr, "Unexpected character\n");
+		break;
+	
+	case -3:
+		fprintf(stderr, "String or label literal too long\n");
+		break;
+
+	case -2:
+		fprintf(stderr, "Invalid escape sequence\n");
+		break;
+
+	case -1:
+		fprintf(stderr, "Unterminated string\n");
+		break;
+
+	default:
+		for (i = 0; i < sizeof(state->error_code) * 8; i++)
+		{
+			if (state->error_code & (1 << i))
+			{
+				fprintf(stderr,
+				        first ? "Expecting %s" : " or %s", tokennames[i]);
+
+				first = false;
+			}
+		}
+
+		fprintf(stderr, "\n");
+		break;
+	}
+
+	fprintf(stderr, "In expression %s\n", expr);
+	fprintf(stderr, "Near here ----");
+
+	for (i = 0; i < state->error_pos; i++)
+		fprintf(stderr, "-");
+
+	fprintf(stderr, "^\n");
+}
+
 static bool
 filter_json(int opt, struct json_object *jsobj, char *expr)
 {
@@ -261,12 +312,14 @@ filter_json(int opt, struct json_object *jsobj, char *expr)
 
 	state = jp_parse(expr);
 
-	if (!state || state->error)
+	if (!state)
 	{
-		fprintf(stderr, "Syntax error near {%s}: %s\n",
-		        state ? expr + state->erroff : expr,
-		        state ? state->error : "Out of memory");
-
+		fprintf(stderr, "Out of memory\n");
+		goto out;
+	}
+	else if (state->error_code)
+	{
+		print_error(state, expr);
 		goto out;
 	}
 

@@ -31,8 +31,8 @@ struct jp_opcode {
 struct jp_state {
 	struct jp_opcode *pool;
 	struct jp_opcode *path;
-	char *error;
-	int erroff;
+	int error_pos;
+	int error_code;
 	int off;
 };
 

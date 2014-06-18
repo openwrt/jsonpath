@@ -39,35 +39,13 @@
 }
 
 %syntax_error {
-	int n = sizeof(tokennames) / sizeof(tokennames[0]);
-	int l = strlen("Expecting ");
-	int c = 0;
 	int i;
 
-	for (i = 0; i < n; i++)
-	{
+	for (i = 0; i < sizeof(tokennames) / sizeof(tokennames[0]); i++)
 		if (yy_find_shift_action(yypParser, (YYCODETYPE)i) < YYNSTATE + YYNRULE)
-			l += strlen(tokennames[i]) + 4;
-	}
+			s->error_code |= (1 << i);
 
-	s->error = malloc(l);
-
-	if (s->error)
-	{
-		s->erroff = s->off;
-		strcpy(s->error, "Expecting ");
-
-		for (i = 0; i < n; i++)
-		{
-			if (yy_find_shift_action(yypParser, (YYCODETYPE)i) < YYNSTATE + YYNRULE)
-			{
-				if (c++)
-					strcat(s->error, " or ");
-
-				strcat(s->error, tokennames[i]);
-			}
-		}
-	}
+	s->error_pos = s->off;
 }
 
 
