@@ -237,7 +237,8 @@ jp_match_next(struct jp_opcode *ptr,
               struct json_object *root, struct json_object *cur,
               jp_match_cb_t cb, void *priv)
 {
-	struct json_object *next;
+	int idx;
+	struct json_object *next = NULL;
 
 	if (!ptr)
 	{
@@ -257,7 +258,13 @@ jp_match_next(struct jp_opcode *ptr,
 		break;
 
 	case T_NUMBER:
-		next = json_object_array_get_idx(cur, ptr->num);
+		idx = ptr->num;
+
+		if (idx < 0)
+			idx += json_object_array_length(cur);
+
+		if (idx >= 0)
+			next = json_object_array_get_idx(cur, idx);
 
 		if (next)
 			return jp_match_next(ptr->sibling, root, next, cb, priv);
