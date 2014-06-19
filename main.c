@@ -99,10 +99,37 @@ print_string(const char *s)
 }
 
 static void
-export_value(struct list_head *matches, const char *prefix)
+print_separator(const char *sep, int *sc, int sl)
+{
+	if (*sc > 0)
+	{
+		switch (sep[(*sc - 1) % sl])
+		{
+		case '"':
+			printf("'\"'");
+			break;
+
+		case '\'':
+			printf("\"'\"");
+			break;
+
+		case ' ':
+			printf("\\ ");
+			break;
+
+		default:
+			printf("%c", sep[(*sc - 1) % sl]);
+		}
+	}
+
+	(*sc)++;
+}
+
+static void
+export_value(struct list_head *matches, const char *prefix, const char *sep)
 {
 	int n, len;
-	bool first = true;
+	int sc = 0, sl = strlen(sep);
 	struct match_item *item;
 
 	if (list_empty(matches))
@@ -123,11 +150,8 @@ export_value(struct list_head *matches, const char *prefix)
 					if (!val)
 						continue;
 
-					if (!first)
-						printf("\\ ");
-
+					print_separator(sep, &sc, sl);
 					print_string(key);
-					first = false;
 				}
 				break;
 
@@ -135,43 +159,34 @@ export_value(struct list_head *matches, const char *prefix)
 				for (n = 0, len = json_object_array_length(item->jsobj);
 				     n < len; n++)
 				{
-					if (!first)
-						printf("\\ ");
-
+					print_separator(sep, &sc, sl);
 					printf("%d", n);
-					first = false;
 				}
 				break;
 
 			case json_type_boolean:
-				if (!first)
-					printf("\\ ");
+				print_separator(sep, &sc, sl);
 				printf("%d", json_object_get_boolean(item->jsobj));
 				break;
 
 			case json_type_int:
-				if (!first)
-					printf("\\ ");
+				print_separator(sep, &sc, sl);
 				printf("%d", json_object_get_int(item->jsobj));
 				break;
 
 			case json_type_double:
-				if (!first)
-					printf("\\ ");
+				print_separator(sep, &sc, sl);
 				printf("%f", json_object_get_double(item->jsobj));
 				break;
 
 			case json_type_string:
-				if (!first)
-					printf("\\ ");
+				print_separator(sep, &sc, sl);
 				print_string(json_object_get_string(item->jsobj));
 				break;
 
 			case json_type_null:
 				break;
 			}
-
-			first = false;
 		}
 
 		printf("; ");
@@ -263,7 +278,7 @@ print_error(struct jp_state *state, char *expr)
 	case -4:
 		fprintf(stderr, "Unexpected character\n");
 		break;
-	
+
 	case -3:
 		fprintf(stderr, "String or label literal too long\n");
 		break;
@@ -302,7 +317,7 @@ print_error(struct jp_state *state, char *expr)
 }
 
 static bool
-filter_json(int opt, struct json_object *jsobj, char *expr)
+filter_json(int opt, struct json_object *jsobj, char *expr, const char *sep)
 {
 	struct jp_state *state;
 	const char *prefix = NULL;
@@ -335,7 +350,7 @@ filter_json(int opt, struct json_object *jsobj, char *expr)
 		break;
 
 	default:
-		export_value(&matches, prefix);
+		export_value(&matches, prefix, sep);
 		break;
 	}
 
@@ -354,9 +369,9 @@ int main(int argc, char **argv)
 	int opt, rv = 0;
 	FILE *input = stdin;
 	struct json_object *jsobj = NULL;
-	const char *jserr = NULL, *source = NULL;
+	const char *jserr = NULL, *source = NULL, *separator = " ";
 
-	while ((opt = getopt(argc, argv, "i:s:e:t:q")) != -1)
+	while ((opt = getopt(argc, argv, "i:s:e:t:F:q")) != -1)
 	{
 		switch (opt)
 		{
@@ -378,6 +393,11 @@ int main(int argc, char **argv)
 			source = optarg;
 			break;
 
+		case 'F':
+			if (optarg && *optarg)
+				separator = optarg;
+			break;
+
 		case 't':
 		case 'e':
 			if (!jsobj)
@@ -394,7 +414,7 @@ int main(int argc, char **argv)
 				}
 			}
 
-			if (!filter_json(opt, jsobj, optarg))
+			if (!filter_json(opt, jsobj, optarg, separator))
 				rv = 1;
 
 			break;
