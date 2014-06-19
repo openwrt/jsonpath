@@ -126,7 +126,8 @@ print_separator(const char *sep, int *sc, int sl)
 }
 
 static void
-export_value(struct list_head *matches, const char *prefix, const char *sep)
+export_value(struct list_head *matches, const char *prefix, const char *sep,
+             int limit)
 {
 	int n, len;
 	int sc = 0, sl = strlen(sep);
@@ -141,6 +142,9 @@ export_value(struct list_head *matches, const char *prefix, const char *sep)
 
 		list_for_each_entry(item, matches, list)
 		{
+			if (limit-- <= 0)
+				break;
+
 			switch (json_object_get_type(item->jsobj))
 			{
 			case json_type_object:
@@ -195,6 +199,9 @@ export_value(struct list_head *matches, const char *prefix, const char *sep)
 	{
 		list_for_each_entry(item, matches, list)
 		{
+			if (limit-- <= 0)
+				break;
+
 			switch (json_object_get_type(item->jsobj))
 			{
 			case json_type_object:
@@ -217,7 +224,7 @@ export_value(struct list_head *matches, const char *prefix, const char *sep)
 }
 
 static void
-export_type(struct list_head *matches, const char *prefix)
+export_type(struct list_head *matches, const char *prefix, int limit)
 {
 	bool first = true;
 	struct match_item *item;
@@ -241,6 +248,9 @@ export_type(struct list_head *matches, const char *prefix)
 	{
 		if (!first)
 			printf("\\ ");
+
+		if (limit-- <= 0)
+			break;
 
 		printf("%s", types[json_object_get_type(item->jsobj)]);
 		first = false;
@@ -317,7 +327,8 @@ print_error(struct jp_state *state, char *expr)
 }
 
 static bool
-filter_json(int opt, struct json_object *jsobj, char *expr, const char *sep)
+filter_json(int opt, struct json_object *jsobj, char *expr, const char *sep,
+            int limit)
 {
 	struct jp_state *state;
 	const char *prefix = NULL;
@@ -346,11 +357,11 @@ filter_json(int opt, struct json_object *jsobj, char *expr, const char *sep)
 	switch (opt)
 	{
 	case 't':
-		export_type(&matches, prefix);
+		export_type(&matches, prefix, limit);
 		break;
 
 	default:
-		export_value(&matches, prefix, sep);
+		export_value(&matches, prefix, sep, limit);
 		break;
 	}
 
@@ -366,12 +377,12 @@ out:
 
 int main(int argc, char **argv)
 {
-	int opt, rv = 0;
+	int opt, rv = 0, limit = 0x7FFFFFFF;
 	FILE *input = stdin;
 	struct json_object *jsobj = NULL;
 	const char *jserr = NULL, *source = NULL, *separator = " ";
 
-	while ((opt = getopt(argc, argv, "i:s:e:t:F:q")) != -1)
+	while ((opt = getopt(argc, argv, "i:s:e:t:F:l:q")) != -1)
 	{
 		switch (opt)
 		{
@@ -398,6 +409,10 @@ int main(int argc, char **argv)
 				separator = optarg;
 			break;
 
+		case 'l':
+			limit = atoi(optarg);
+			break;
+
 		case 't':
 		case 'e':
 			if (!jsobj)
@@ -414,7 +429,7 @@ int main(int argc, char **argv)
 				}
 			}
 
-			if (!filter_json(opt, jsobj, optarg, separator))
+			if (!filter_json(opt, jsobj, optarg, separator, limit))
 				rv = 1;
 
 			break;
