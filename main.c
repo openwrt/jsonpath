@@ -444,7 +444,7 @@ out:
 	if (jsobj)
 		json_object_put(jsobj);
 
-	if (input != stdin)
+	if (input && input != stdin)
 		fclose(input);
 
 	return rv;
