@@ -258,16 +258,19 @@ jp_match_next(struct jp_opcode *ptr,
 		break;
 
 	case T_NUMBER:
-		idx = ptr->num;
+		if (json_object_get_type(cur) == json_type_array)
+		{
+			idx = ptr->num;
 
-		if (idx < 0)
-			idx += json_object_array_length(cur);
+			if (idx < 0)
+				idx += json_object_array_length(cur);
 
-		if (idx >= 0)
-			next = json_object_array_get_idx(cur, idx);
+			if (idx >= 0)
+				next = json_object_array_get_idx(cur, idx);
 
-		if (next)
-			return jp_match_next(ptr->sibling, root, next, cb, priv);
+			if (next)
+				return jp_match_next(ptr->sibling, root, next, cb, priv);
+		}
 
 		break;
 
