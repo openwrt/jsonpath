@@ -205,6 +205,7 @@ static char *yyTracePrompt = 0;
 ** Outputs:
 ** None.
 */
+void ParseTrace(FILE *TraceFILE, char *zTracePrompt);
 void ParseTrace(FILE *TraceFILE, char *zTracePrompt){
   yyTraceFILE = TraceFILE;
   yyTracePrompt = zTracePrompt;
