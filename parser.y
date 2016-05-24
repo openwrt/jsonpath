@@ -56,6 +56,8 @@ expr(A) ::= path(B).								{ A = B; }
 
 path(A) ::= T_ROOT segments(B).						{ A = alloc_op(T_ROOT, 0, NULL, B); }
 path(A) ::= T_THIS segments(B).						{ A = alloc_op(T_THIS, 0, NULL, B); }
+path(A) ::= T_ROOT(B).								{ A = B; }
+path(A) ::= T_THIS(B).								{ A = B; }
 
 segments(A) ::= segments(B) segment(C).				{ A = append_op(B, C); }
 segments(A) ::= segment(B).							{ A = B; }
