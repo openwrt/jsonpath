@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -211,7 +212,7 @@ export_value(struct list_head *matches, const char *prefix, const char *sep,
 
 			case json_type_int:
 				print_separator(sep, &sc, sl);
-				printf("%d", json_object_get_int(item->jsobj));
+				printf("%" PRId64, json_object_get_int64(item->jsobj));
 				break;
 
 			case json_type_double:
