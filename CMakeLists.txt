@@ -37,6 +37,9 @@ ADD_CUSTOM_COMMAND(
   COMMENT "Generating parser.c"
 )
 
+FIND_PATH(ubox_include_dir libubox/list.h)
+INCLUDE_DIRECTORIES(${ubox_include_dir})
+
 SET_PROPERTY(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "lemon;parser.h;parser.out")
 SET_SOURCE_FILES_PROPERTIES("parser.c" PROPERTIES GENERATED TRUE)
 ADD_EXECUTABLE(jsonpath main.c ast.c lexer.c parser.c matcher.c)
