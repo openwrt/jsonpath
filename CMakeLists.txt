@@ -7,11 +7,6 @@ IF(NOT APPLE)
   SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-Wl,--gc-sections")
 ENDIF()
 
-IF(APPLE)
-  INCLUDE_DIRECTORIES(/opt/local/include)
-  LINK_DIRECTORIES(/opt/local/lib)
-ENDIF()
-
 find_library(json NAMES json-c json)
 
 IF(DEBUG)
