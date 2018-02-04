@@ -43,9 +43,10 @@ print_usage(char *app)
 {
 	printf(
 	"== Usage ==\n\n"
-	"  # %s [-i <file> | -s \"json...\"] {-t <pattern> | -e <pattern>}\n"
+	"  # %s [-a] [-i <file> | -s \"json...\"] {-t <pattern> | -e <pattern>}\n"
 	"  -q		Quiet, no errors are printed\n"
 	"  -h, --help	Print this help\n"
+	"  -a		Implicitely treat input as array, useful for JSON logs\n"
 	"  -i path	Specify a JSON file to parse\n"
 	"  -s \"json\"	Specify a JSON string to parse\n"
 	"  -l limit	Specify max number of results to show\n"
@@ -75,30 +76,80 @@ print_usage(char *app)
 }
 
 static struct json_object *
-parse_json(FILE *fd, const char *source, const char **error)
+parse_json_chunk(struct json_tokener *tok, struct json_object *array,
+                 const char *buf, size_t len, enum json_tokener_error *err)
 {
-	int len;
-	char buf[256];
 	struct json_object *obj = NULL;
+
+	while (len)
+	{
+		obj = json_tokener_parse_ex(tok, buf, len);
+		*err = json_tokener_get_error(tok);
+
+		if (*err == json_tokener_success)
+		{
+			if (array)
+			{
+				json_object_array_add(array, obj);
+			}
+			else
+			{
+				break;
+			}
+		}
+		else if (*err != json_tokener_continue)
+		{
+			break;
+		}
+
+		buf += tok->char_offset;
+		len -= tok->char_offset;
+	}
+
+	return obj;
+}
+
+static struct json_object *
+parse_json(FILE *fd, const char *source, const char **error, bool array_mode)
+{
+	size_t len;
+	char buf[256];
+	struct json_object *obj = NULL, *array = NULL;
 	struct json_tokener *tok = json_tokener_new();
 	enum json_tokener_error err = json_tokener_continue;
 
 	if (!tok)
+	{
+		*error = "Out of memory";
 		return NULL;
+	}
+
+	if (array_mode)
+	{
+		array = json_object_new_array();
+
+		if (!array)
+		{
+			json_tokener_free(tok);
+			*error = "Out of memory";
+			return NULL;
+		}
+	}
 
 	if (source)
 	{
-		obj = json_tokener_parse_ex(tok, source, strlen(source));
-		err = json_tokener_get_error(tok);
+		obj = parse_json_chunk(tok, array, source, strlen(source), &err);
 	}
 	else
 	{
 		while ((len = fread(buf, 1, sizeof(buf), fd)) > 0)
 		{
-			obj = json_tokener_parse_ex(tok, buf, len);
-			err = json_tokener_get_error(tok);
+			obj = parse_json_chunk(tok, array, buf, len, &err);
 
-			if (!err || err != json_tokener_continue)
+			if (err == json_tokener_success && !array)
+				break;
+
+			if (err != json_tokener_continue)
 				break;
 		}
 	}
@@ -114,7 +165,7 @@ parse_json(FILE *fd, const char *source, const char **error)
 		return NULL;
 	}
 
-	return obj;
+	return array ? array : obj;
 }
 
 static void
@@ -414,6 +465,7 @@ out:
 
 int main(int argc, char **argv)
 {
+	bool array_mode = false;
 	int opt, rv = 0, limit = 0x7FFFFFFF;
 	FILE *input = stdin;
 	struct json_object *jsobj = NULL;
@@ -425,10 +477,14 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
-	while ((opt = getopt(argc, argv, "hi:s:e:t:F:l:q")) != -1)
+	while ((opt = getopt(argc, argv, "ahi:s:e:t:F:l:q")) != -1)
 	{
 		switch (opt)
 		{
+		case 'a':
+			array_mode = true;
+			break;
+
 		case 'h':
 			print_usage(argv[0]);
 			goto out;
@@ -464,7 +520,7 @@ int main(int argc, char **argv)
 		case 'e':
 			if (!jsobj)
 			{
-				jsobj = parse_json(input, source, &jserr);
+				jsobj = parse_json(input, source, &jserr, array_mode);
 
 				if (!jsobj)
 				{
