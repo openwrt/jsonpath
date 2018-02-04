@@ -20,7 +20,7 @@
 %left T_AND.
 %left T_OR.
 %left T_UNION.
-%nonassoc T_EQ T_NE T_GT T_GE T_LT T_LE.
+%nonassoc T_EQ T_NE T_GT T_GE T_LT T_LE T_MATCH.
 %right T_NOT.
 
 %include {
@@ -87,11 +87,13 @@ cmp_exp(A) ::= unary_exp(B) T_GT unary_exp(C).		{ A = alloc_op(T_GT, 0, NULL, B,
 cmp_exp(A) ::= unary_exp(B) T_GE unary_exp(C).		{ A = alloc_op(T_GE, 0, NULL, B, C); }
 cmp_exp(A) ::= unary_exp(B) T_EQ unary_exp(C).		{ A = alloc_op(T_EQ, 0, NULL, B, C); }
 cmp_exp(A) ::= unary_exp(B) T_NE unary_exp(C).		{ A = alloc_op(T_NE, 0, NULL, B, C); }
+cmp_exp(A) ::= unary_exp(B) T_MATCH unary_exp(C).	{ A = alloc_op(T_MATCH, 0, NULL, B, C); }
 cmp_exp(A) ::= unary_exp(B).						{ A = B; }
 
 unary_exp(A) ::= T_BOOL(B).							{ A = B; }
 unary_exp(A) ::= T_NUMBER(B).						{ A = B; }
 unary_exp(A) ::= T_STRING(B).						{ A = B; }
+unary_exp(A) ::= T_REGEXP(B).						{ A = B; }
 unary_exp(A) ::= T_WILDCARD(B).						{ A = B; }
 unary_exp(A) ::= T_POPEN or_exps(B) T_PCLOSE.		{ A = B; }
 unary_exp(A) ::= T_NOT unary_exp(B).				{ A = alloc_op(T_NOT, 0, NULL, B); }

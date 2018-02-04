@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <regex.h>
 
 #include "ast.h"
 #include "lexer.h"
@@ -236,7 +237,21 @@ parse_string(const char *buf, struct jp_opcode *op, struct jp_state *s)
 				case 'r': *out = '\r'; break;
 				case 't': *out = '\t'; break;
 				case 'v': *out = '\v'; break;
-				default:  *out = *in; break;
+				default:
+					/* in regexp mode, retain backslash */
+					if (q == '/')
+					{
+						if (rem-- < 1)
+						{
+							s->error_pos = s->off + (in - buf);
+							return -3;
+						}
+
+						*out++ = '\\';
+					}
+
+					*out = *in;
+					break;
 				}
 
 				in++;
@@ -274,6 +289,58 @@ parse_string(const char *buf, struct jp_opcode *op, struct jp_state *s)
 	}
 
 	return -1;
+}
+
+
+/*
+ * Parses a regexp literal from the given buffer.
+ *
+ * Returns a negative value on error, otherwise the amount of consumed
+ * characters from the given buffer.
+ *
+ * Error values:
+ *  -1	Unterminated regexp
+ *  -2	Invalid escape sequence
+ *  -3	Regexp literal too long
+ */
+
+static int
+parse_regexp(const char *buf, struct jp_opcode *op, struct jp_state *s)
+{
+	int len = parse_string(buf, op, s);
+	const char *p;
+
+	if (len >= 2)
+	{
+		op->num = REG_NOSUB | REG_NEWLINE;
+
+		for (p = buf + len; p; p++)
+		{
+			switch (*p)
+			{
+			case 'e':
+				op->num |= REG_EXTENDED;
+				len++;
+				break;
+
+			case 'i':
+				op->num |= REG_ICASE;
+				len++;
+				break;
+
+			case 's':
+				op->num &= ~REG_NEWLINE;
+				len++;
+				break;
+
+			default:
+				return len;
+			}
+		}
+
+	}
+
+	return len;
 }
 
 
@@ -367,8 +434,10 @@ static const struct token tokens[] = {
 	{ T_LT,			"<",     1 },
 	{ T_GT,			">",     1 },
 	{ T_EQ,			"=",     1 },
+	{ T_MATCH,		"~",     1 },
 	{ T_NOT,		"!",     1 },
 	{ T_WILDCARD,	"*",     1 },
+	{ T_REGEXP,		"/",	 1, parse_regexp },
 	{ T_STRING,		"'",	 1, parse_string },
 	{ T_STRING,		"\"",	 1, parse_string },
 	{ T_LABEL,		"_",     1, parse_label  },
@@ -378,7 +447,7 @@ static const struct token tokens[] = {
 	{ T_NUMBER,		"09",    0, parse_number },
 };
 
-const char *tokennames[23] = {
+const char *tokennames[25] = {
 	[0]				= "End of file",
 	[T_AND]			= "'&&'",
 	[T_OR]			= "'||'",
@@ -389,12 +458,14 @@ const char *tokennames[23] = {
 	[T_GE]			= "'>='",
 	[T_LT]			= "'<'",
 	[T_LE]			= "'<='",
+	[T_MATCH]       = "'~'",
 	[T_NOT]			= "'!'",
 	[T_LABEL]		= "Label",
 	[T_ROOT]		= "'$'",
 	[T_THIS]		= "'@'",
 	[T_DOT]			= "'.'",
 	[T_WILDCARD]	= "'*'",
+	[T_REGEXP]      = "/.../",
 	[T_BROPEN]		= "'['",
 	[T_BRCLOSE]		= "']'",
 	[T_BOOL]		= "Bool",

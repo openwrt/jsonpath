@@ -17,6 +17,7 @@
 #include "parser.h"
 #include "matcher.h"
 
+
 static struct json_object *
 jp_match_next(struct jp_opcode *ptr,
               struct json_object *root, struct json_object *cur,
@@ -131,6 +132,99 @@ jp_cmp(struct jp_opcode *op, struct json_object *root, struct json_object *cur)
 }
 
 static bool
+jp_regmatch(struct jp_opcode *op, struct json_object *root, struct json_object *cur)
+{
+	struct jp_opcode left, right;
+	char lbuf[22], rbuf[22], *lval, *rval;
+	int err, rflags = REG_NOSUB | REG_NEWLINE;
+	regex_t preg;
+
+
+	if (!jp_resolve(root, cur, op->down, &left) ||
+	    !jp_resolve(root, cur, op->down->sibling, &right))
+		return false;
+
+	if (left.type == T_REGEXP)
+	{
+		switch (right.type)
+		{
+		case T_BOOL:
+			lval = right.num ? "true" : "false";
+			break;
+
+		case T_NUMBER:
+			snprintf(lbuf, sizeof(lbuf), "%d", right.num);
+			lval = lbuf;
+			break;
+
+		case T_STRING:
+			lval = right.str;
+			break;
+
+		default:
+			return false;
+		}
+
+		rval = left.str;
+		rflags = left.num;
+	}
+	else
+	{
+		switch (left.type)
+		{
+		case T_BOOL:
+			lval = left.num ? "true" : "false";
+			break;
+
+		case T_NUMBER:
+			snprintf(lbuf, sizeof(lbuf), "%d", left.num);
+			lval = lbuf;
+			break;
+
+		case T_STRING:
+			lval = left.str;
+			break;
+
+		default:
+			return false;
+		}
+
+		switch (right.type)
+		{
+		case T_BOOL:
+			rval = right.num ? "true" : "false";
+			break;
+
+		case T_NUMBER:
+			snprintf(rbuf, sizeof(rbuf), "%d", right.num);
+			rval = rbuf;
+			break;
+
+		case T_STRING:
+			rval = right.str;
+			break;
+
+		case T_REGEXP:
+			rval = right.str;
+			rflags = right.num;
+			break;
+
+		default:
+			return false;
+		}
+	}
+
+	if (regcomp(&preg, rval, rflags))
+		return false;
+
+	err = regexec(&preg, lval, 0, NULL, 0);
+
+	regfree(&preg);
+
+	return err ? false : true;
+}
+
+static bool
 jp_expr(struct jp_opcode *op, struct json_object *root, struct json_object *cur,
         int idx, const char *key, jp_match_cb_t cb, void *priv)
 {
@@ -148,6 +242,9 @@ jp_expr(struct jp_opcode *op, struct json_object *root, struct json_object *cur,
 	case T_GT:
 	case T_GE:
 		return jp_cmp(op, root, cur);
+
+	case T_MATCH:
+		return jp_regmatch(op, root, cur);
 
 	case T_ROOT:
 		return !!jp_match(op, root, NULL, NULL);

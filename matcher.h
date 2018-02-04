@@ -19,6 +19,8 @@
 
 #include <string.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <regex.h>
 
 #ifdef JSONC
 	#include <json.h>
