@@ -55,7 +55,7 @@ utf8enc(char **out, int *rem, int code)
 		if (*rem < 1)
 			return false;
 
-		*(*out++) = code; (*rem)--;
+		*(*out)++ = code; (*rem)--;
 		return true;
 	}
 	else if (code > 0 && code <= 0x7FF)
