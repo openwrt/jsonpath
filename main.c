@@ -146,10 +146,8 @@ parse_json(FILE *fd, const char *source, const char **error, bool array_mode)
 		{
 			obj = parse_json_chunk(tok, array, buf, len, &err);
 
-			if (err == json_tokener_success && !array)
-				break;
-
-			if (err != json_tokener_continue)
+			if ((err == json_tokener_success && array_mode == false) ||
+			    (err != json_tokener_continue && err != json_tokener_success))
 				break;
 		}
 	}
