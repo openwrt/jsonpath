@@ -465,9 +465,12 @@ int main(int argc, char **argv)
 {
 	bool array_mode = false;
 	int opt, rv = 0, limit = 0x7FFFFFFF;
+	int te_opt = -1;
+	bool i_s_flag = false, t_e_flag = false;
 	FILE *input = stdin;
 	struct json_object *jsobj = NULL;
 	const char *jserr = NULL, *source = NULL, *separator = " ";
+	char *te_source = NULL;
 
 	if (argc == 1)
 	{
@@ -488,6 +491,8 @@ int main(int argc, char **argv)
 			goto out;
 
 		case 'i':
+			i_s_flag = true;
+
 			input = fopen(optarg, "r");
 
 			if (!input)
@@ -502,6 +507,8 @@ int main(int argc, char **argv)
 			break;
 
 		case 's':
+			i_s_flag = true;
+
 			source = optarg;
 			break;
 
@@ -516,30 +523,36 @@ int main(int argc, char **argv)
 
 		case 't':
 		case 'e':
-			if (!jsobj)
-			{
-				jsobj = parse_json(input, source, &jserr, array_mode);
+			t_e_flag = true;
 
-				if (!jsobj)
-				{
-					fprintf(stderr, "Failed to parse json data: %s\n",
-					        jserr);
-
-					rv = 126;
-					goto out;
-				}
-			}
-
-			if (!filter_json(opt, jsobj, optarg, separator, limit))
-				rv = 1;
-
+			// defer parsing and filtering
+			te_source = optarg;
+			te_opt = opt;
 			break;
 
 		case 'q':
 			fclose(stderr);
 			break;
 		}
+
 	}
+
+	// Deferred JSON parsing after option parsing is complete
+	if (!jsobj && i_s_flag)
+	{
+		jsobj = parse_json(input, source, &jserr, array_mode);
+		if (!jsobj)
+		{
+			fprintf(stderr, "Failed to parse JSON data: %s\n", jserr);
+			rv = 126;
+			goto out;
+		}
+	}
+
+	// Handle filtering and other JSON operations
+	if(te_opt != -1 && t_e_flag)
+		if (!filter_json(te_opt, jsobj, te_source, separator, limit))
+			rv = 1;
 
 out:
 	if (jsobj)
