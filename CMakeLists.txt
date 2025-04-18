@@ -21,7 +21,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT contrib/lemon
   DEPENDS contrib/lemon.c contrib/lempar.c
-  COMMAND gcc -o contrib/lemon contrib/lemon.c
+  COMMAND gcc -std=gnu17 -o contrib/lemon contrib/lemon.c
   COMMENT "Generating lemon parser generator"
 )
 
