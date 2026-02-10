@@ -533,6 +533,10 @@ int main(int argc, char **argv)
 		case 'q':
 			fclose(stderr);
 			break;
+		case '?':
+			/* invalid or unknown. getopt() prints the error to stderr */
+			rv = 1;
+			goto out;
 		}
 
 	}
