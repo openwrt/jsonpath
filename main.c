@@ -466,7 +466,7 @@ int main(int argc, char **argv)
 	bool array_mode = false;
 	int opt, rv = 0, limit = 0x7FFFFFFF;
 	int te_opt = -1;
-	bool i_s_flag = false, t_e_flag = false;
+	bool t_e_flag = false;
 	FILE *input = stdin;
 	struct json_object *jsobj = NULL;
 	const char *jserr = NULL, *source = NULL, *separator = " ";
@@ -492,8 +492,6 @@ int main(int argc, char **argv)
 			goto out;
 
 		case 'i':
-			i_s_flag = true;
-
 			input = fopen(optarg, "r");
 
 			if (!input)
@@ -508,8 +506,6 @@ int main(int argc, char **argv)
 			break;
 
 		case 's':
-			i_s_flag = true;
-
 			source = optarg;
 			break;
 
@@ -543,7 +539,7 @@ int main(int argc, char **argv)
 	}
 
 	// Deferred JSON parsing after option parsing is complete
-	if (!jsobj && i_s_flag)
+	if (!jsobj && t_e_flag)
 	{
 		jsobj = parse_json(input, source, &jserr, array_mode);
 		if (!jsobj)
