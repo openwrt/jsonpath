@@ -465,12 +465,13 @@ int main(int argc, char **argv)
 {
 	bool array_mode = false;
 	int opt, rv = 0, limit = 0x7FFFFFFF;
-	int te_opt = -1;
 	bool t_e_flag = false;
 	FILE *input = stdin;
 	struct json_object *jsobj = NULL;
 	const char *jserr = NULL, *source = NULL, *separator = " ";
-	char *te_source = NULL;
+	int te_opts[argc];
+	char *te_sources[argc];
+	int te_count = 0;
 
 	if (argc == 1)
 	{
@@ -523,8 +524,9 @@ int main(int argc, char **argv)
 			t_e_flag = true;
 
 			// defer parsing and filtering
-			te_source = optarg;
-			te_opt = opt;
+			te_sources[te_count] = optarg;
+			te_opts[te_count] = opt;
+			te_count++;
 			break;
 
 		case 'q':
@@ -551,8 +553,8 @@ int main(int argc, char **argv)
 	}
 
 	// Handle filtering and other JSON operations
-	if(te_opt != -1 && t_e_flag)
-		if (!filter_json(te_opt, jsobj, te_source, separator, limit))
+	for (int i = 0; i < te_count; i++)
+		if (!filter_json(te_opts[i], jsobj, te_sources[i], separator, limit))
 			rv = 1;
 
 out:
