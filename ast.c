@@ -27,11 +27,9 @@ struct jp_opcode *
 jp_alloc_op(struct jp_state *s, int type, int num, char *str, ...)
 {
 	va_list ap;
-	char *ptr;
 	struct jp_opcode *newop, *child;
 
-	newop = calloc_a(sizeof(*newop),
-	                 str ? &ptr : NULL, str ? strlen(str) + 1 : 0);
+	newop = calloc(1, sizeof(*newop));
 
 	if (!newop)
 	{
@@ -43,7 +41,7 @@ jp_alloc_op(struct jp_state *s, int type, int num, char *str, ...)
 	newop->num = num;
 
 	if (str)
-		newop->str = strcpy(ptr, str);
+		newop->str = strdup(str);
 
 	va_start(ap, str);
 
@@ -69,6 +67,7 @@ jp_free(struct jp_state *s)
 	for (op = s->pool; op;)
 	{
 		tmp = op->next;
+		free(op->str);
 		free(op);
 		op = tmp;
 	}
